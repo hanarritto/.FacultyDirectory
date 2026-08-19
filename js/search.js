@@ -15,9 +15,33 @@ const exportBtn = document.getElementById('exportBtn');
 const favoriteCount = document.getElementById('favoriteCount');
 
 let currentPage = 1;
-const itemsPerPage = 12;
+let itemsPerPage = 12;
 let currentView = localStorage.getItem('facultyView') || 'grid';
 let filteredTeachers = [...FACULTY_DATA];
+
+// fetch() returns a Promise containing the HTTP response.
+function requestSearchConfig() {
+  return fetch('data/search-config.json');
+}
+
+// Load JSON settings asynchronously without breaking the page if the request fails.
+async function loadSearchConfig() {
+  try {
+    const response = await requestSearchConfig();
+
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+
+    const config = await response.json();
+
+    if (Number.isInteger(config.itemsPerPage) && config.itemsPerPage > 0) {
+      itemsPerPage = config.itemsPerPage;
+    }
+  } catch (error) {
+    console.error('Unable to load search configuration:', error);
+  }
+}
 
 function getFavorites() {
   try { return JSON.parse(localStorage.getItem('favorites')) || []; }
@@ -400,7 +424,9 @@ document.addEventListener('click', event => {
   }
 });
 
-function initializeSearchPage() {
+async function initializeSearchPage() {
+  await loadSearchConfig();
+
   FACULTIES.forEach(([en, th]) => {
     const option = document.createElement('option');
     option.value = en;
