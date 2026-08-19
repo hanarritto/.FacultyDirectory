@@ -228,6 +228,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Fetch API returns a Promise. Await waits for the HTTP response and JSON data.
+  async function loadSearchConfig() {
+    try {
+      const requestPromise = fetch('data/search-config.json');
+      const response = await requestPromise;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const config = await response.json();
+      itemsPerPage = Number(config.itemsPerPage) || 12;
+    } catch (error) {
+      console.warn('Search config could not be loaded:', error);
+    }
+  }
+
   if (searchInput) searchInput.addEventListener('input', () => { currentPage = 1; const list = getFilteredResults(); renderResults(list); showSuggestions(list); });
   if (facultyFilter) facultyFilter.addEventListener('change', () => { currentPage = 1; renderResults(getFilteredResults()); });
   if (prevBtn) prevBtn.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderResults(filteredTeachers); } });
@@ -236,10 +249,15 @@ document.addEventListener('DOMContentLoaded', () => {
   if (listViewBtn) listViewBtn.addEventListener('click', () => { currentView = 'list'; localStorage.setItem('facultyView', currentView); renderResults(filteredTeachers); });
   if (exportBtn) exportBtn.addEventListener('click', exportFacultyCSV);
 
-  populateFacultyFilter();
-  renderRecentSearches();
-  renderPopularSearches();
-  updateFavoriteCount();
-  if (!FACULTY_LIST.length && resultsBox) resultsBox.innerHTML = '<div class="alert alert-danger">Faculty data failed to load | โหลดข้อมูลอาจารย์ไม่สำเร็จ</div>';
-  else renderResults(FACULTY_LIST);
+  async function initializeSearchPage() {
+    await loadSearchConfig();
+    populateFacultyFilter();
+    renderRecentSearches();
+    renderPopularSearches();
+    updateFavoriteCount();
+    if (!FACULTY_LIST.length && resultsBox) resultsBox.innerHTML = '<div class="alert alert-danger">Faculty data failed to load | โหลดข้อมูลอาจารย์ไม่สำเร็จ</div>';
+    else renderResults(FACULTY_LIST);
+  }
+
+  initializeSearchPage();
 });
