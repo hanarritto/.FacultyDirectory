@@ -77,9 +77,14 @@
       id="searchInput"
       class="form-control search-input"
       type="search"
+      v-model="searchText"
       placeholder="Search faculty, department, or specialization | ค้นหาอาจารย์ คณะ หรือสาขา"
       autocomplete="off">
     <div id="suggestions" class="suggestions"></div>
+    <p v-if="searchText" class="text-muted mt-2 mb-0">
+  Searching for | กำลังค้นหา:
+  <strong>{{ searchText }}</strong>
+</p>
   </section>
 
   <section class="history-panel p-3 mb-4">
