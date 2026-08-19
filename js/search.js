@@ -4,6 +4,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const FACULTY_LIST = Array.isArray(window.FACULTY_DATA) ? window.FACULTY_DATA : [];
 
+  const OFFICIAL_IMAGES = {
+    'Assoc. Prof. Dr. Ismail Lutfi Japakiya': 'https://ftu.ac.th/wp-content/uploads/2024/11/IMG_7568-scaled-e1730664983474-228x300.jpg',
+    'Asst. Prof. Dr. Ahmad Yeesunthong': 'https://ftu.ac.th/wp-content/uploads/2025/04/ahmad-235x300.png',
+    'Asst. Prof. Sorat Abdulsata': 'https://ftu.ac.th/wp-content/uploads/2025/04/sorat-235x300.png',
+    'Asst. Prof. Dr. Anuwat Walee': 'https://ftu.ac.th/wp-content/uploads/2024/11/4dfc49d3-68b0-48e9-a435-ee00a15d8449-1-235x300.png',
+    'Asst. Prof. Dr. Prachya Benmadni': 'https://ftu.ac.th/wp-content/uploads/2024/11/IMG_7551-229x300.jpg',
+    'Asst. Prof. Dr. Ibrahim Tehha': 'https://ftu.ac.th/wp-content/uploads/2024/11/4dfc49d3-68b0-48e9-a435-ee00a15d8449-1-1-1-3-235x300.png'
+  };
+
+  function cleanNameEN(name) {
+    return String(name || '').replace(/\s*\(Demo\s*\d+\)\s*/gi, '').trim();
+  }
+
+  function cleanNameTH(name, fallbackEN) {
+    const value = String(name || '').trim();
+    if (/^อาจารย์ตัวอย่าง\s*\d+$/i.test(value)) return cleanNameEN(fallbackEN);
+    return value;
+  }
+
+  function getDisplayImage(t) {
+    if (OFFICIAL_IMAGES[t.nameEN]) return OFFICIAL_IMAGES[t.nameEN];
+    const clean = cleanNameEN(t.nameEN);
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(clean)}&size=300&background=EEF2FF&color=3730A3&bold=true`;
+  }
+
+  function displayTeacher(t) {
+    return {
+      ...t,
+      nameEN: cleanNameEN(t.nameEN),
+      nameTH: cleanNameTH(t.nameTH, t.nameEN),
+      image: getDisplayImage(t)
+    };
+  }
+
   const searchInput = document.getElementById('searchInput');
   const suggestionsBox = document.getElementById('suggestions');
   const resultsBox = document.getElementById('results');
@@ -23,31 +57,20 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentView = localStorage.getItem('facultyView') || 'grid';
   let filteredTeachers = [...FACULTY_LIST];
 
-  function normalize(value) {
-    return String(value || '').trim().toLowerCase();
-  }
+  const normalize = value => String(value || '').trim().toLowerCase();
 
   function getFavorites() {
     try { return JSON.parse(localStorage.getItem('favorites')) || []; }
     catch { return []; }
   }
 
-  function saveFavorites(items) {
-    localStorage.setItem('favorites', JSON.stringify(items));
-  }
-
-  function isFavorite(name) {
-    return getFavorites().includes(name);
-  }
-
-  function updateFavoriteCount() {
-    if (favoriteCount) favoriteCount.textContent = getFavorites().length;
-  }
+  function saveFavorites(items) { localStorage.setItem('favorites', JSON.stringify(items)); }
+  function isFavorite(name) { return getFavorites().includes(name); }
+  function updateFavoriteCount() { if (favoriteCount) favoriteCount.textContent = getFavorites().length; }
 
   window.toggleFavorite = function(name) {
     let favorites = getFavorites();
-    if (favorites.includes(name)) favorites = favorites.filter(item => item !== name);
-    else favorites.push(name);
+    favorites = favorites.includes(name) ? favorites.filter(item => item !== name) : [...favorites, name];
     saveFavorites(favorites);
     updateFavoriteCount();
     renderResults(filteredTeachers);
@@ -56,15 +79,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function scoreTeacher(t, keyword) {
     const q = normalize(keyword);
     if (!q) return 0;
-
-    const fields = [
-      t.nameEN, t.nameTH,
-      t.departmentEN, t.departmentTH,
-      t.facultyEN, t.facultyTH,
-      t.positionEN, t.positionTH,
-      ...(Array.isArray(t.interests) ? t.interests : [])
-    ].map(normalize);
-
+    const d = displayTeacher(t);
+    const fields = [d.nameEN, d.nameTH, d.departmentEN, d.departmentTH, d.facultyEN, d.facultyTH, d.positionEN, d.positionTH, ...(Array.isArray(d.interests) ? d.interests : [])].map(normalize);
     let best = -1;
     fields.forEach(field => {
       if (field === q) best = Math.max(best, 100);
@@ -78,19 +94,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function searchTeachers(keyword) {
     const q = normalize(keyword);
     if (!q) return [...FACULTY_LIST];
-
-    return FACULTY_LIST
-      .map(t => ({ teacher: t, score: scoreTeacher(t, q) }))
+    return FACULTY_LIST.map(t => ({ teacher: t, score: scoreTeacher(t, q) }))
       .filter(item => item.score >= 0)
-      .sort((a, b) => b.score - a.score || String(a.teacher.nameEN).localeCompare(String(b.teacher.nameEN)))
+      .sort((a, b) => b.score - a.score || cleanNameEN(a.teacher.nameEN).localeCompare(cleanNameEN(b.teacher.nameEN)))
       .map(item => item.teacher);
   }
 
   function getFilteredResults() {
     let list = searchTeachers(searchInput ? searchInput.value : '');
-    if (facultyFilter && facultyFilter.value) {
-      list = list.filter(t => t.facultyEN === facultyFilter.value);
-    }
+    if (facultyFilter && facultyFilter.value) list = list.filter(t => t.facultyEN === facultyFilter.value);
     return list;
   }
 
@@ -105,35 +117,28 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderResults(list) {
     if (!resultsBox) return;
     filteredTeachers = Array.isArray(list) ? list : [];
-
     const totalPages = Math.max(1, Math.ceil(filteredTeachers.length / itemsPerPage));
     if (currentPage > totalPages) currentPage = totalPages;
-
     const start = (currentPage - 1) * itemsPerPage;
     const pageItems = filteredTeachers.slice(start, start + itemsPerPage);
 
-    if (pageItems.length === 0) {
-      resultsBox.innerHTML = `
-        <div class="col-12 text-center text-muted py-5">
-          <i class="bi bi-search display-5 d-block mb-3"></i>
-          No faculty found | ไม่พบข้อมูลอาจารย์
-        </div>`;
+    if (!pageItems.length) {
+      resultsBox.innerHTML = '<div class="col-12 text-center text-muted py-5"><i class="bi bi-search display-5 d-block mb-3"></i>No faculty found | ไม่พบข้อมูลอาจารย์</div>';
       updatePagination();
       return;
     }
 
-    resultsBox.innerHTML = pageItems.map(t => {
-      const safeName = String(t.nameEN || '').replace(/'/g, "\\'");
+    resultsBox.innerHTML = pageItems.map(raw => {
+      const t = displayTeacher(raw);
+      const originalName = String(raw.nameEN || '').replace(/'/g, "\\'");
       return `
       <div class="${currentView === 'grid' ? 'col-md-6 col-xl-4' : 'col-12'}">
         <article class="card faculty-card h-100 p-4 fade-in position-relative ${currentView === 'list' ? 'faculty-list-card' : 'text-center'}">
-          <button class="favorite-button btn btn-light position-absolute top-0 end-0 m-3 rounded-circle shadow-sm"
-                  onclick="toggleFavorite('${safeName}')"
-                  title="Favorite | รายการโปรด">
-            <i class="bi ${isFavorite(t.nameEN) ? 'bi-star-fill text-warning' : 'bi-star text-secondary'}"></i>
+          <button class="favorite-button btn btn-light position-absolute top-0 end-0 m-3 rounded-circle shadow-sm" onclick="toggleFavorite('${originalName}')" title="Favorite | รายการโปรด">
+            <i class="bi ${isFavorite(raw.nameEN) ? 'bi-star-fill text-warning' : 'bi-star text-secondary'}"></i>
           </button>
           <div class="${currentView === 'list' ? 'd-md-flex align-items-center gap-4' : ''}">
-            <img src="${t.image || ''}" class="faculty-img ${currentView === 'grid' ? 'mx-auto mb-3' : 'mb-3 mb-md-0'}" alt="${t.nameEN || ''}">
+            <img src="${t.image}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(t.nameEN)}&size=300&background=EEF2FF&color=3730A3&bold=true'" class="faculty-img ${currentView === 'grid' ? 'mx-auto mb-3' : 'mb-3 mb-md-0'}" alt="${t.nameEN}">
             <div class="${currentView === 'list' ? 'flex-grow-1' : ''}">
               <h5 class="fw-bold mb-1">${t.nameEN || '-'}</h5>
               <div class="text-muted mb-2">${t.nameTH || '-'}</div>
@@ -141,40 +146,34 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="small text-muted mb-1">${t.facultyTH || '-'}</div>
               <div class="small fw-semibold mb-1">${t.departmentEN || '-'}</div>
               <div class="small text-muted mb-3">${t.departmentTH || '-'}</div>
-              <button class="btn btn-outline-primary btn-sm" onclick="openProfileByName('${safeName}')">View Profile | ดูโปรไฟล์</button>
+              <button class="btn btn-outline-primary btn-sm" onclick="openProfileByName('${originalName}')">View Profile | ดูโปรไฟล์</button>
             </div>
           </div>
         </article>
       </div>`;
     }).join('');
-
     updatePagination();
   }
 
   function showSuggestions(list) {
     if (!suggestionsBox || !searchInput) return;
-    const keyword = searchInput.value.trim();
-    if (!keyword || list.length === 0) {
+    if (!searchInput.value.trim() || !list.length) {
       suggestionsBox.innerHTML = '';
       suggestionsBox.style.display = 'none';
       return;
     }
-
-    suggestionsBox.innerHTML = list.slice(0, 7).map(t => `
-      <button class="suggestion-item w-100 text-start border-0 bg-transparent" data-name="${String(t.nameEN || '').replace(/"/g, '&quot;')}">
-        <div class="suggestion-name">${t.nameEN || '-'}</div>
-        <div class="suggestion-dept">${t.departmentEN || '-'} | ${t.departmentTH || '-'}</div>
-      </button>`).join('');
+    suggestionsBox.innerHTML = list.slice(0, 7).map(raw => {
+      const t = displayTeacher(raw);
+      return `<button class="suggestion-item w-100 text-start border-0 bg-transparent" data-name="${String(raw.nameEN || '').replace(/"/g, '&quot;')}"><div class="suggestion-name">${t.nameEN || '-'}</div><div class="suggestion-dept">${t.departmentEN || '-'} | ${t.departmentTH || '-'}</div></button>`;
+    }).join('');
     suggestionsBox.style.display = 'block';
-
-    suggestionsBox.querySelectorAll('.suggestion-item').forEach(button => {
-      button.addEventListener('click', () => {
-        searchInput.value = button.dataset.name;
-        suggestionsBox.style.display = 'none';
-        currentPage = 1;
-        renderResults(getFilteredResults());
-      });
-    });
+    suggestionsBox.querySelectorAll('.suggestion-item').forEach(button => button.addEventListener('click', () => {
+      const raw = FACULTY_LIST.find(t => t.nameEN === button.dataset.name);
+      searchInput.value = raw ? cleanNameEN(raw.nameEN) : button.dataset.name;
+      suggestionsBox.style.display = 'none';
+      currentPage = 1;
+      renderResults(getFilteredResults());
+    }));
   }
 
   function renderRecentSearches() {
@@ -193,14 +192,17 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   window.openProfileByName = function(name) {
-    const teacher = FACULTY_LIST.find(t => t.nameEN === name);
-    if (!teacher) return;
-    localStorage.setItem('selectedTeacher', JSON.stringify(teacher));
+    const raw = FACULTY_LIST.find(t => t.nameEN === name);
+    if (!raw) return;
+    localStorage.setItem('selectedTeacher', JSON.stringify(displayTeacher(raw)));
     window.location.href = 'profile.html';
   };
 
   function exportFacultyCSV() {
-    const rows = filteredTeachers.map(t => [t.id, t.nameEN, t.nameTH, t.facultyEN, t.facultyTH, t.departmentEN, t.departmentTH, t.email, t.phone]);
+    const rows = filteredTeachers.map(raw => {
+      const t = displayTeacher(raw);
+      return [t.id, t.nameEN, t.nameTH, t.facultyEN, t.facultyTH, t.departmentEN, t.departmentTH, t.email, t.phone];
+    });
     const headers = ['ID','Name (English)','Name (Thai)','Faculty (English)','Faculty (Thai)','Department (English)','Department (Thai)','Email','Phone'];
     const csv = [headers, ...rows].map(row => row.map(value => `"${String(value || '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -217,9 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function populateFacultyFilter() {
     if (!facultyFilter) return;
     const map = new Map();
-    FACULTY_LIST.forEach(t => {
-      if (t.facultyEN && !map.has(t.facultyEN)) map.set(t.facultyEN, t.facultyTH || '');
-    });
+    FACULTY_LIST.forEach(t => { if (t.facultyEN && !map.has(t.facultyEN)) map.set(t.facultyEN, t.facultyTH || ''); });
     [...map.entries()].sort((a, b) => a[0].localeCompare(b[0])).forEach(([en, th]) => {
       const option = document.createElement('option');
       option.value = en;
@@ -228,15 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (searchInput) {
-    searchInput.addEventListener('input', () => {
-      currentPage = 1;
-      const list = getFilteredResults();
-      renderResults(list);
-      showSuggestions(list);
-    });
-  }
-
+  if (searchInput) searchInput.addEventListener('input', () => { currentPage = 1; const list = getFilteredResults(); renderResults(list); showSuggestions(list); });
   if (facultyFilter) facultyFilter.addEventListener('change', () => { currentPage = 1; renderResults(getFilteredResults()); });
   if (prevBtn) prevBtn.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderResults(filteredTeachers); } });
   if (nextBtn) nextBtn.addEventListener('click', () => { const total = Math.ceil(filteredTeachers.length / itemsPerPage); if (currentPage < total) { currentPage++; renderResults(filteredTeachers); } });
@@ -248,10 +240,6 @@ document.addEventListener('DOMContentLoaded', () => {
   renderRecentSearches();
   renderPopularSearches();
   updateFavoriteCount();
-
-  if (FACULTY_LIST.length === 0 && resultsBox) {
-    resultsBox.innerHTML = '<div class="alert alert-danger">Faculty data failed to load | โหลดข้อมูลอาจารย์ไม่สำเร็จ</div>';
-  } else {
-    renderResults(FACULTY_LIST);
-  }
+  if (!FACULTY_LIST.length && resultsBox) resultsBox.innerHTML = '<div class="alert alert-danger">Faculty data failed to load | โหลดข้อมูลอาจารย์ไม่สำเร็จ</div>';
+  else renderResults(FACULTY_LIST);
 });
